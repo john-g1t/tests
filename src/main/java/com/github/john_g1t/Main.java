@@ -11,7 +11,8 @@ import com.github.john_g1t.presentation.console.ConsoleMenu;
 
 public class Main {
     public static void main(String[] args) {
-        PasswordGenerator.init("salt"); // hello cybersecurity
+        String salt = readSalt();
+        PasswordGenerator.init(salt);
 
         UserRepository userRepository = new InMemoryUserRepository();
         TestRepository testRepository = new InMemoryTestRepository();
@@ -59,5 +60,13 @@ public class Main {
             testService,
             attemptService
         );
+    }
+
+    private static String readSalt() {
+        String salt = System.getenv("SALT");
+        if (salt == null) {
+            throw new IllegalArgumentException("no salt set in env");
+        }
+        return salt;
     }
 }

@@ -1,7 +1,15 @@
 package com.github.john_g1t.presentation.console;
 
-import com.github.john_g1t.app.usecase.*;
-import com.github.john_g1t.domain.model.*;
+import com.github.john_g1t.app.usecase.CreateTestUseCase;
+import com.github.john_g1t.app.usecase.CreateUserUseCase;
+import com.github.john_g1t.app.usecase.FinishTestAttemptUseCase;
+import com.github.john_g1t.app.usecase.StartTestAttemptUseCase;
+import com.github.john_g1t.app.usecase.SubmitAnswerUseCase;
+import com.github.john_g1t.domain.model.AnswerOption;
+import com.github.john_g1t.domain.model.Question;
+import com.github.john_g1t.domain.model.Test;
+import com.github.john_g1t.domain.model.TestAttempt;
+import com.github.john_g1t.domain.model.User;
 import com.github.john_g1t.domain.service.TestAttemptService;
 import com.github.john_g1t.domain.service.TestService;
 import com.github.john_g1t.domain.service.UserService;

@@ -1,12 +1,26 @@
 package com.github.john_g1t;
 
-import com.github.john_g1t.app.usecase.*;
-import com.github.john_g1t.domain.repository.*;
+import com.github.john_g1t.app.usecase.CreateTestUseCase;
+import com.github.john_g1t.app.usecase.CreateUserUseCase;
+import com.github.john_g1t.app.usecase.FinishTestAttemptUseCase;
+import com.github.john_g1t.app.usecase.StartTestAttemptUseCase;
+import com.github.john_g1t.app.usecase.SubmitAnswerUseCase;
+import com.github.john_g1t.domain.repository.AnswerOptionRepository;
+import com.github.john_g1t.domain.repository.QuestionRepository;
+import com.github.john_g1t.domain.repository.TestAttemptRepository;
+import com.github.john_g1t.domain.repository.TestRepository;
+import com.github.john_g1t.domain.repository.UserAnswerRepository;
+import com.github.john_g1t.domain.repository.UserRepository;
 import com.github.john_g1t.domain.service.PasswordGenerator;
 import com.github.john_g1t.domain.service.TestAttemptService;
 import com.github.john_g1t.domain.service.TestService;
 import com.github.john_g1t.domain.service.UserService;
-import com.github.john_g1t.infrastructure.repository.*;
+import com.github.john_g1t.infrastructure.repository.InMemoryAnswerOptionRepository;
+import com.github.john_g1t.infrastructure.repository.InMemoryQuestionRepository;
+import com.github.john_g1t.infrastructure.repository.InMemoryTestAttemptRepository;
+import com.github.john_g1t.infrastructure.repository.InMemoryTestRepository;
+import com.github.john_g1t.infrastructure.repository.InMemoryUserAnswerRepository;
+import com.github.john_g1t.infrastructure.repository.InMemoryUserRepository;
 import com.github.john_g1t.presentation.console.ConsoleMenu;
 
 public class Main {

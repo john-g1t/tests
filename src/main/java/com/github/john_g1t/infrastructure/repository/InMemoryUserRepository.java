@@ -2,8 +2,11 @@ package com.github.john_g1t.infrastructure.repository;
 
 import com.github.john_g1t.domain.model.User;
 import com.github.john_g1t.domain.repository.UserRepository;
-
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 public class InMemoryUserRepository implements UserRepository {
     private final Map<Integer, User> usersById = new HashMap<>();

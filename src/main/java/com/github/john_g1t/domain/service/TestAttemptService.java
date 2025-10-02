@@ -1,8 +1,17 @@
 package com.github.john_g1t.domain.service;
 
-import com.github.john_g1t.domain.model.*;
-import com.github.john_g1t.domain.repository.*;
-
+import com.github.john_g1t.domain.model.AnswerOption;
+import com.github.john_g1t.domain.model.Question;
+import com.github.john_g1t.domain.model.Test;
+import com.github.john_g1t.domain.model.TestAttempt;
+import com.github.john_g1t.domain.model.User;
+import com.github.john_g1t.domain.model.UserAnswer;
+import com.github.john_g1t.domain.repository.AnswerOptionRepository;
+import com.github.john_g1t.domain.repository.QuestionRepository;
+import com.github.john_g1t.domain.repository.TestAttemptRepository;
+import com.github.john_g1t.domain.repository.TestRepository;
+import com.github.john_g1t.domain.repository.UserAnswerRepository;
+import com.github.john_g1t.domain.repository.UserRepository;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;

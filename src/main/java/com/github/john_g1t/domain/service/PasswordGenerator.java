@@ -23,7 +23,7 @@ public final class PasswordGenerator {
         return INSTANCE;
     }
 
-    public synchronized static PasswordGenerator init(String salt) {
+    public static PasswordGenerator init(String salt) {
         if (INSTANCE != null) {
             throw new AssertionError("Already initialized");
         }

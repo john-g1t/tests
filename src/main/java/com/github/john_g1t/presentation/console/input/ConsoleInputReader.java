@@ -1,4 +1,4 @@
-package com.github.john_g1t.presentation.console;
+package com.github.john_g1t.presentation.console.input;
 
 
 import java.util.Scanner;

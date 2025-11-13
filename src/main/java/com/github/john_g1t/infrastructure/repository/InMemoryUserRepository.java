@@ -46,6 +46,11 @@ public class InMemoryUserRepository implements UserRepository {
     }
 
     @Override
+    public boolean existsById(Integer id) {
+        return usersById.containsKey(id);
+    }
+
+    @Override
     public void delete(Integer id) {
         User user = usersById.remove(id);
         if (user != null) {

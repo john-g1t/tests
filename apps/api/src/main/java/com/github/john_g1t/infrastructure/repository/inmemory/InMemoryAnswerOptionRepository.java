@@ -1,4 +1,4 @@
-package com.github.john_g1t.infrastructure.repository;
+package com.github.john_g1t.infrastructure.repository.inmemory;
 
 import com.github.john_g1t.domain.model.AnswerOption;
 import com.github.john_g1t.domain.repository.AnswerOptionRepository;

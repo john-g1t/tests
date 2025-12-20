@@ -30,6 +30,7 @@ public class RegisterUserCommand extends BaseCommand {
 
             view.showSuccess("User registered successfully with ID: " + userId);
         } catch (Exception e) {
+            e.printStackTrace();
             handleError("Registration failed", e);
         }
     }

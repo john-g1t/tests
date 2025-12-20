@@ -1,16 +1,36 @@
 package com.github.john_g1t.infrastructure;
 
 import com.github.john_g1t.app.usecase.UseCase;
-import com.github.john_g1t.app.usecase.attempt.*;
+import com.github.john_g1t.app.usecase.attempt.FinishTestAttemptRequest;
+import com.github.john_g1t.app.usecase.attempt.StartTestAttemptRequest;
+import com.github.john_g1t.app.usecase.attempt.StartTestAttemptUseCase;
+import com.github.john_g1t.app.usecase.attempt.SubmitAnswerUseCase;
+import com.github.john_g1t.app.usecase.attempt.FinishTestAttemptUseCase;
+import com.github.john_g1t.app.usecase.attempt.SubmitAnswerRequest;
 import com.github.john_g1t.app.usecase.test.CreateTestRequest;
 import com.github.john_g1t.app.usecase.test.CreateTestUseCase;
 import com.github.john_g1t.app.usecase.user.CreateUserRequest;
 import com.github.john_g1t.app.usecase.user.CreateUserUseCase;
-import com.github.john_g1t.domain.repository.*;
-import com.github.john_g1t.domain.service.attempt.*;
-import com.github.john_g1t.domain.service.test.*;
-import com.github.john_g1t.domain.service.user.*;
-import com.github.john_g1t.infrastructure.repository.*;
+import com.github.john_g1t.domain.repository.AnswerOptionRepository;
+import com.github.john_g1t.domain.repository.QuestionRepository;
+import com.github.john_g1t.domain.repository.TestRepository;
+import com.github.john_g1t.domain.repository.UserRepository;
+import com.github.john_g1t.domain.repository.TestAttemptRepository;
+import com.github.john_g1t.domain.repository.UserAnswerRepository;
+import com.github.john_g1t.domain.service.attempt.TestAttemptFactory;
+import com.github.john_g1t.domain.service.attempt.TestAttemptService;
+import com.github.john_g1t.domain.service.attempt.UserAnswerFactory;
+import com.github.john_g1t.domain.service.test.AnswerOptionFactory;
+import com.github.john_g1t.domain.service.test.QuestionFactory;
+import com.github.john_g1t.domain.service.test.TestFactory;
+import com.github.john_g1t.domain.service.test.TestService;
+import com.github.john_g1t.domain.service.user.UserFactory;
+import com.github.john_g1t.domain.service.user.UserService;
+import com.github.john_g1t.domain.service.user.UserServiceImpl;
+import com.github.john_g1t.domain.service.attempt.TestAttemptServiceImpl;
+import com.github.john_g1t.domain.service.test.TestServiceImpl;
+import com.github.john_g1t.infrastructure.repository.RepositoryProvider;
+import com.github.john_g1t.infrastructure.repository.postgres.PostgresConnectionFactory;
 
 public class ApplicationContext {
     private final UserRepository userRepository;
@@ -38,12 +58,20 @@ public class ApplicationContext {
     private final UseCase<FinishTestAttemptRequest, Integer> finishTestAttemptUseCase;
 
     public ApplicationContext() {
-        this.userRepository = new InMemoryUserRepository();
-        this.testRepository = new InMemoryTestRepository();
-        this.questionRepository = new InMemoryQuestionRepository();
-        this.answerOptionRepository = new InMemoryAnswerOptionRepository();
-        this.attemptRepository = new InMemoryTestAttemptRepository();
-        this.userAnswerRepository = new InMemoryUserAnswerRepository();
+        this(RepositoryProvider.inMemory());
+    }
+
+    public ApplicationContext(PostgresConnectionFactory connectionFactory) {
+        this(RepositoryProvider.postgres(connectionFactory));
+    }
+
+    private ApplicationContext(RepositoryProvider repos) {
+        this.userRepository = repos.userRepository();
+        this.testRepository = repos.testRepository();
+        this.questionRepository = repos.questionRepository();
+        this.answerOptionRepository = repos.answerOptionRepository();
+        this.attemptRepository = repos.attemptRepository();
+        this.userAnswerRepository = repos.userAnswerRepository();
 
         this.userFactory = new UserFactory();
         this.testFactory = new TestFactory();
@@ -54,13 +82,13 @@ public class ApplicationContext {
 
         this.userService = new UserServiceImpl(userRepository, userFactory);
         this.testService = new TestServiceImpl(
-            testRepository, questionRepository, answerOptionRepository,
-            testFactory, questionFactory, answerOptionFactory
+                testRepository, questionRepository, answerOptionRepository,
+                testFactory, questionFactory, answerOptionFactory
         );
         this.attemptService = new TestAttemptServiceImpl(
-            attemptRepository, testRepository, questionRepository,
-            answerOptionRepository, userAnswerRepository, userRepository,
-            attemptFactory, userAnswerFactory
+                attemptRepository, testRepository, questionRepository,
+                answerOptionRepository, userAnswerRepository, userRepository,
+                attemptFactory, userAnswerFactory
         );
 
         this.createUserUseCase = new CreateUserUseCase(userService);
@@ -69,7 +97,6 @@ public class ApplicationContext {
         this.submitAnswerUseCase = new SubmitAnswerUseCase(attemptService);
         this.finishTestAttemptUseCase = new FinishTestAttemptUseCase(attemptService);
     }
-
 
     public UserService getUserService() {
         return userService;

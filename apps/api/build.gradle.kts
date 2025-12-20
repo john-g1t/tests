@@ -10,6 +10,10 @@ repositories {
     mavenCentral()
 }
 
+dependencies {
+    implementation("org.postgresql:postgresql:42.7.8")
+}
+
 application {
     mainClass = "com.github.john_g1t.Main"
 }

@@ -52,7 +52,7 @@ public class PostgresUserRepository implements UserRepository {
             stmt.setString(2, user.getPassword());
             stmt.setString(3, user.getFirstName());
             stmt.setString(4, user.getLastName());
-
+            System.out.println(stmt.toString());
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
                 int id = rs.getInt(1);

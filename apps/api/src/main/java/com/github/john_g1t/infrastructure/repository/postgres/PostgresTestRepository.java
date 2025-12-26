@@ -26,7 +26,7 @@ public class PostgresTestRepository implements TestRepository {
     private final static String FIND_BY_CREATOR = "SELECT id, title, description, created_by, time_limit, max_attempts, is_active, start_time, end_time " +
             "FROM tests WHERE created_by = ?";
     private final static String FIND_ACTIVE = "SELECT id, title, description, created_by, time_limit, max_attempts, is_active, start_time, end_time" +
-            "FROM tests WHERE is_active = true";
+            " FROM tests WHERE is_active = true";
     private final static String DELETE = "DELETE FROM tests WHERE id = ?";
 
     private final Connection connection;
@@ -53,8 +53,20 @@ public class PostgresTestRepository implements TestRepository {
             stmt.setInt(4, test.getTimeLimit());
             stmt.setInt(5, test.getMaxAttempts());
             stmt.setBoolean(6, test.isActive());
-            stmt.setObject(7, test.getStartTime().toOffsetDateTime());
-            stmt.setObject(8, test.getEndTime().toOffsetDateTime());
+
+            // Handle null start_time
+            if (test.getStartTime() != null) {
+                stmt.setObject(7, test.getStartTime().toOffsetDateTime());
+            } else {
+                stmt.setObject(7, null);
+            }
+
+            // Handle null end_time
+            if (test.getEndTime() != null) {
+                stmt.setObject(8, test.getEndTime().toOffsetDateTime());
+            } else {
+                stmt.setObject(8, null);
+            }
 
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
@@ -76,8 +88,21 @@ public class PostgresTestRepository implements TestRepository {
             stmt.setInt(4, test.getTimeLimit());
             stmt.setInt(5, test.getMaxAttempts());
             stmt.setBoolean(6, test.isActive());
-            stmt.setObject(7, test.getStartTime().toOffsetDateTime());
-            stmt.setObject(8, test.getEndTime().toOffsetDateTime());
+
+            // Handle null start_time
+            if (test.getStartTime() != null) {
+                stmt.setObject(7, test.getStartTime().toOffsetDateTime());
+            } else {
+                stmt.setObject(7, null);
+            }
+
+            // Handle null end_time
+            if (test.getEndTime() != null) {
+                stmt.setObject(8, test.getEndTime().toOffsetDateTime());
+            } else {
+                stmt.setObject(8, null);
+            }
+
             stmt.setInt(9, test.getId());
             stmt.executeUpdate();
         } catch (SQLException e) {
@@ -153,20 +178,28 @@ public class PostgresTestRepository implements TestRepository {
     }
 
     private Test mapResultSetToTest(ResultSet rs) throws SQLException {
+        // Handle potentially null start_time
         OffsetDateTime startTimeOdt = rs.getObject("start_time", OffsetDateTime.class);
-        ZonedDateTime startTimeZdt = startTimeOdt.atZoneSameInstant(ZoneId.systemDefault());
+        ZonedDateTime startTime = startTimeOdt != null
+                ? startTimeOdt.toZonedDateTime()
+                : null;
+
+        // Handle potentially null end_time
         OffsetDateTime endTimeOdt = rs.getObject("end_time", OffsetDateTime.class);
-        ZonedDateTime endTimeZdt = endTimeOdt.atZoneSameInstant(ZoneId.systemDefault());
+        ZonedDateTime endTime = endTimeOdt != null
+                ? endTimeOdt.toZonedDateTime()
+                : null;
+
         return new Test(
-            rs.getInt("id"),
-            rs.getInt("created_by"),
-            rs.getString("title"),
-            rs.getString("description"),
-            rs.getInt("time_limit"),
-            rs.getInt("max_attempts"),
-            rs.getBoolean("is_active"),
-            startTimeZdt,
-            endTimeZdt
+                rs.getInt("id"),
+                rs.getInt("created_by"),
+                rs.getString("title"),
+                rs.getString("description"),
+                rs.getInt("time_limit"),
+                rs.getInt("max_attempts"),
+                rs.getBoolean("is_active"),
+                startTime,
+                endTime
         );
     }
 }

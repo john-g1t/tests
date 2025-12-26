@@ -6,7 +6,7 @@ public class TestDto {
     private final Integer id;
     private final String title;
     private final String description;
-    private final String createdBy;
+    private final Integer createdBy;
     private final Integer timeLimit;
     private final Integer maxAttempts;
     private final boolean isActive;
@@ -14,7 +14,7 @@ public class TestDto {
     private final ZonedDateTime endTime;
 
     public TestDto(
-            Integer id, String title, String description, String createdBy, Integer timeLimit,
+            Integer id, String title, String description, Integer createdBy, Integer timeLimit,
             Integer maxAttempts, boolean isActive, ZonedDateTime startTime, ZonedDateTime endTime
     ) {
         this.id = id;
@@ -40,7 +40,7 @@ public class TestDto {
         return description;
     }
 
-    public String getCreatedBy() {
+    public Integer getCreatedBy() {
         return createdBy;
     }
 
@@ -52,8 +52,8 @@ public class TestDto {
         return maxAttempts;
     }
 
-    public boolean isActive() {
-        return isActive;
+    public boolean getIsActive() {
+        return this.isActive;
     }
 
     public ZonedDateTime getStartTime() {

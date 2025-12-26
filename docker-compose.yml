@@ -1,5 +1,4 @@
 name: tests
-
 services:
   postgres:
     image: postgres:17
@@ -15,24 +14,47 @@ services:
     networks: [internal]
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   api:
     build:
       context: ./apps/api
+      dockerfile: Dockerfile
     container_name: tests-api
-    stdin_open: true
-    tty: true
     environment:
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
+      DB_HOST: postgres
+      DB_PORT: 5432
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
       SALT: ${SALT}
+      JAVA_OPTS: "-Xmx512m -Xms256m"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     networks: [internal]
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./apps/website
+      dockerfile: Dockerfile
+    container_name: tests-frontend
+    volumes:
+      - ./apps/website:/app
+      - /app/node_modules
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks: [internal]
+    ports:
+      - "5173:5173"
 
 networks:
   internal:

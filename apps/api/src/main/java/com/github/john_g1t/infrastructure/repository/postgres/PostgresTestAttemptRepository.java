@@ -47,8 +47,21 @@ public class PostgresTestAttemptRepository implements TestAttemptRepository {
             stmt.setInt(1, attempt.getUserId());
             stmt.setInt(2, attempt.getTestId());
             stmt.setObject(3, attempt.getStartTime().toOffsetDateTime());
-            stmt.setObject(4, attempt.getEndTime().toOffsetDateTime());
-            stmt.setInt(5, attempt.getScore());
+
+            // Handle null end_time (test in progress)
+            if (attempt.getEndTime() != null) {
+                stmt.setObject(4, attempt.getEndTime().toOffsetDateTime());
+            } else {
+                stmt.setObject(4, null);
+            }
+
+            // Handle null score (not calculated yet)
+            if (attempt.getScore() != null) {
+                stmt.setInt(5, attempt.getScore());
+            } else {
+                stmt.setObject(5, null);
+            }
+
             stmt.setInt(6, attempt.getAttemptNumber());
 
             ResultSet rs = stmt.executeQuery();
@@ -68,8 +81,21 @@ public class PostgresTestAttemptRepository implements TestAttemptRepository {
             stmt.setInt(1, attempt.getUserId());
             stmt.setInt(2, attempt.getTestId());
             stmt.setObject(3, attempt.getStartTime().toOffsetDateTime());
-            stmt.setObject(4, attempt.getEndTime().toOffsetDateTime());
-            stmt.setInt(5, attempt.getScore());
+
+            // Handle null end_time (test in progress)
+            if (attempt.getEndTime() != null) {
+                stmt.setObject(4, attempt.getEndTime().toOffsetDateTime());
+            } else {
+                stmt.setObject(4, null);
+            }
+
+            // Handle null score (not calculated yet)
+            if (attempt.getScore() != null) {
+                stmt.setInt(5, attempt.getScore());
+            } else {
+                stmt.setObject(5, null);
+            }
+
             stmt.setInt(6, attempt.getAttemptNumber());
             stmt.setInt(7, attempt.getId());
             stmt.executeUpdate();
@@ -151,16 +177,24 @@ public class PostgresTestAttemptRepository implements TestAttemptRepository {
     private TestAttempt mapResultSetToTestAttempt(ResultSet rs) throws SQLException {
         OffsetDateTime startTimeOdt = rs.getObject("start_time", OffsetDateTime.class);
         ZonedDateTime startTimeZdt = startTimeOdt.atZoneSameInstant(ZoneId.systemDefault());
+
+        // Handle null end_time (test in progress)
         OffsetDateTime endTimeOdt = rs.getObject("end_time", OffsetDateTime.class);
-        ZonedDateTime endTimeZdt = endTimeOdt.atZoneSameInstant(ZoneId.systemDefault());
+        ZonedDateTime endTimeZdt = endTimeOdt != null
+                ? endTimeOdt.atZoneSameInstant(ZoneId.systemDefault())
+                : null;
+
+        // Handle null score (not calculated yet)
+        Integer score = rs.getObject("score", Integer.class);
+
         return new TestAttempt(
-            rs.getInt("id"),
-            rs.getInt("user_id"),
-            rs.getInt("test_id"),
-            startTimeZdt,
-            endTimeZdt,
-            rs.getInt("score"),
-            rs.getInt("attempt_number")
+                rs.getInt("id"),
+                rs.getInt("user_id"),
+                rs.getInt("test_id"),
+                startTimeZdt,
+                endTimeZdt,
+                score,
+                rs.getInt("attempt_number")
         );
     }
 }

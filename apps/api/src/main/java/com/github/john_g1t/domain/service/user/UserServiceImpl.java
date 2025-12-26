@@ -17,12 +17,16 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Integer registerUser(String email, String password, String firstName, String lastName) {
+        System.out.println("Registering user");
         if (userRepository.existsByEmail(email)) {
             throw new IllegalStateException("User with email " + email + " already exists");
         }
+        System.out.println("Email check");
 
         String hashedPassword = PasswordGenerator.getInstance().hash(password);
+        System.out.println("Password");
         User user = userFactory.createUser(email, hashedPassword, firstName, lastName);
+        System.out.println("Created");
         return userRepository.save(user);
     }
 

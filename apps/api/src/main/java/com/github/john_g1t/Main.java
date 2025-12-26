@@ -32,7 +32,7 @@ public class Main {
         PasswordGenerator.init(salt);
     }
 
-    private static PostgresConnectionFactory initializePostgres() {
+    public static PostgresConnectionFactory initializePostgres() {
         final String host = "postgres";
         String port = System.getenv("DB_PORT");
         if (port == null) {

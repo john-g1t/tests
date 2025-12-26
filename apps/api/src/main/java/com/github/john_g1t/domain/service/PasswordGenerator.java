@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
+import java.util.Base64;
 
 public final class PasswordGenerator {
     private static final String ALGORITHM = "PBKDF2WithHmacSHA1";
@@ -36,7 +37,7 @@ public final class PasswordGenerator {
 
     public String hash(String password) {
         byte[] hash = generateHash(password);
-        return new String(hash, StandardCharsets.UTF_8);
+        return Base64.getEncoder().encodeToString(hash);
     }
 
     public boolean verify(String password, String validate) {

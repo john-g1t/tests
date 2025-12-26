@@ -17,6 +17,8 @@ public class PostgresConnectionFactory implements ConnectionFactory {
         this.url = String.format("jdbc:postgresql://%s:%s/%s", host, port, name);
         this.username = user;
         this.password = password;
+        System.out.println("JDBC URL = " + this.url);
+        System.out.println("User = " + username);
     }
 
     public PostgresConnectionFactory(String jdbcUrl, String username, String password) {
@@ -26,6 +28,12 @@ public class PostgresConnectionFactory implements ConnectionFactory {
     }
 
     public Connection getConnection() {
+        try {
+            Class.forName("org.postgresql.Driver");
+            System.out.println("PostgreSQL driver found");
+        } catch (ClassNotFoundException e) {
+            System.err.println("PostgreSQL driver NOT found");
+        }
         try {
             if (connection == null || connection.isClosed()) {
                 connection = DriverManager.getConnection(url, username, password);

@@ -1,5 +1,6 @@
 plugins {
     id("java")
+    id("war")
     application
 }
 
@@ -12,6 +13,10 @@ repositories {
 
 dependencies {
     implementation("org.postgresql:postgresql:42.7.8")
+    compileOnly("jakarta.servlet:jakarta.servlet-api:5.0.0")
+
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
+    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2")
 }
 
 application {

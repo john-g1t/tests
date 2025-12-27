@@ -1,50 +1,90 @@
 package com.github.john_g1t.presentation.web.servlet;
 
-import com.github.john_g1t.app.dto.TestDto;
 import com.github.john_g1t.app.usecase.UseCase;
 import com.github.john_g1t.app.usecase.test.CreateTestRequest;
 import com.github.john_g1t.domain.model.Question;
 import com.github.john_g1t.domain.model.Test;
 import com.github.john_g1t.domain.model.TestAttempt;
-import com.github.john_g1t.domain.repository.TestAttemptRepository;
-import com.github.john_g1t.domain.repository.TestRepository;
 import com.github.john_g1t.domain.service.attempt.TestAttemptService;
 import com.github.john_g1t.domain.service.test.TestService;
 import com.github.john_g1t.infrastructure.ApplicationContext;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
 import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-@WebServlet(name = "TestServlet", urlPatterns = {"/tests/*"})
+@WebServlet(name = "TestServlet", urlPatterns = {"/tests/*", "/questions/*"})
 public class TestServlet extends BaseServlet {
+
+    // ==========================================
+    // HTTP METHOD ENTRY POINTS
+    // ==========================================
+
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
         setCorsHeaders(response);
+        String uri = request.getRequestURI();
         String pathInfo = request.getPathInfo();
 
         try {
-            if (pathInfo == null || pathInfo.equals("/")) {
-                handleGetAllTests(request, response);
-            } else if (pathInfo.endsWith("/statistics")) {
+            // Route: /questions/{id}/options
+            if (uri.contains("/questions/") && uri.endsWith("/options")) {
+                Integer questionId = extractIdFromUriSegment(uri, "questions");
+                if (questionId != null) {
+                    handleGetOptions(request, response, questionId);
+                } else {
+                    sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid question ID");
+                }
+                return;
+            }
+
+            // Route: /tests/{id}/questions
+            if (uri.contains("/tests/") && uri.endsWith("/questions")) {
+                Integer testId = extractTestIdFromUri(uri);
+                if (testId != null) {
+                    handleGetQuestions(request, response, testId);
+                } else {
+                    sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid test ID");
+                }
+                return;
+            }
+
+            // Route: /tests/{id}/statistics
+            if (uri.endsWith("/statistics")) {
                 Integer testId = parseIdFromPath(pathInfo, "/statistics");
                 if (testId != null) {
                     handleGetTestStatistics(request, response, testId);
                 } else {
                     sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid test ID");
                 }
-            } else {
+                return;
+            }
+
+            // Route: /tests or /tests/ (Get All)
+            if (uri.endsWith("/tests") || uri.endsWith("/tests/")) {
+                handleGetAllTests(request, response);
+                return;
+            }
+
+            // Route: /tests/{id} (Get One)
+            // We ensure we aren't mistakenly catching a /questions/{id} route here by checking the start
+            if (uri.contains("/tests/")) {
                 Integer testId = parseId(pathInfo);
                 if (testId != null) {
                     handleGetTestById(request, response, testId);
                 } else {
                     sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid test ID");
                 }
+                return;
             }
+
+            sendError(response, HttpServletResponse.SC_NOT_FOUND, "Endpoint not found");
+
         } catch (Exception e) {
             sendError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                     "Internal server error: " + e.getMessage());
@@ -55,40 +95,122 @@ public class TestServlet extends BaseServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
         setCorsHeaders(response);
-
         Integer userId = getCurrentUserId(request);
         if (userId == null) {
             sendError(response, HttpServletResponse.SC_UNAUTHORIZED, "Authentication required");
             return;
         }
 
+        String uri = request.getRequestURI();
+
         try {
-            handleCreateTest(request, response, userId);
+            // Route: /questions/{id}/options
+            if (uri.contains("/questions/") && uri.endsWith("/options")) {
+                Integer questionId = extractQuestionIdFromUri(uri);
+                handleAddOption(request, response, questionId, userId);
+            }
+
+            // Route: /tests/{id}/questions (Add Question)
+            if (uri.contains("/tests/") && uri.endsWith("/questions")) {
+                Integer testId = extractTestIdFromUri(uri);
+                if (testId != null) {
+                    handleAddQuestion(request, response, testId, userId);
+                } else {
+                    sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid test ID");
+                }
+            }
+            // Route: /tests (Create Test)
+            else if (uri.endsWith("/tests") || uri.endsWith("/tests/")) {
+                handleCreateTest(request, response, userId);
+            } else {
+                sendError(response, HttpServletResponse.SC_NOT_FOUND, "Endpoint not found");
+            }
         } catch (Exception e) {
             sendError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                     "Internal server error: " + e.getMessage());
         }
     }
 
+    private Integer extractQuestionIdFromUri(String uri) {
+        String[] parts = uri.split("/");
+        for (int i = 0; i < parts.length - 1; i++) {
+            if ("questions".equals(parts[i])) {
+                try {
+                    return Integer.parseInt(parts[i + 1]);
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void handleAddOption(HttpServletRequest request, HttpServletResponse response,
+                                 Integer questionId, Integer userId) throws IOException {
+        ApplicationContext ctx = getAppContext();
+        TestService testService = ctx.getTestService();
+
+       AddOptionRequestDto optionRequest = readJson(request, AddOptionRequestDto.class);
+
+        if (optionRequest.optionText == null || optionRequest.optionText.isBlank()) {
+            sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Option text is required");
+            return;
+        }
+
+        try {
+            System.out.println(questionId);
+            Integer optionId = testService.addAnswerOption(
+                    questionId,
+                    sanitizeInput(optionRequest.optionText),
+                    optionRequest.score
+            );
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("optionId", optionId);
+            sendSuccess(response, result);
+        } catch (IllegalArgumentException e) {
+            sendError(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
+        }
+    }
+
+    private static class AddOptionRequestDto {
+        public String optionText;
+        public Integer score;
+    }
+
     @Override
     protected void doPut(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
         setCorsHeaders(response);
-
         Integer userId = getCurrentUserId(request);
         if (userId == null) {
             sendError(response, HttpServletResponse.SC_UNAUTHORIZED, "Authentication required");
             return;
         }
 
-        Integer testId = parseId(request.getPathInfo());
-        if (testId == null) {
-            sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid test ID");
-            return;
-        }
+        String uri = request.getRequestURI();
 
         try {
-            handleUpdateTest(request, response, testId, userId);
+            // Route: /questions/{id} (Update Question)
+            if (uri.contains("/questions/")) {
+                Integer questionId = parseId(request.getPathInfo());
+                if (questionId == null) {
+                    sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid question ID");
+                    return;
+                }
+                handleUpdateQuestion(request, response, questionId, userId);
+            }
+            // Route: /tests/{id} (Update Test)
+            else if (uri.contains("/tests/")) {
+                Integer testId = parseId(request.getPathInfo());
+                if (testId == null) {
+                    sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid test ID");
+                    return;
+                }
+                handleUpdateTest(request, response, testId, userId);
+            } else {
+                sendError(response, HttpServletResponse.SC_NOT_FOUND, "Endpoint not found");
+            }
         } catch (Exception e) {
             sendError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                     "Internal server error: " + e.getMessage());
@@ -99,59 +221,44 @@ public class TestServlet extends BaseServlet {
     protected void doDelete(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
         setCorsHeaders(response);
-
         Integer userId = getCurrentUserId(request);
         if (userId == null) {
             sendError(response, HttpServletResponse.SC_UNAUTHORIZED, "Authentication required");
             return;
         }
 
-        Integer testId = parseId(request.getPathInfo());
-        if (testId == null) {
-            sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid test ID");
-            return;
-        }
+        String uri = request.getRequestURI();
 
         try {
-            handleDeactivateTest(request, response, testId, userId);
+            // Route: /questions/{id} (Delete Question)
+            if (uri.contains("/questions/")) {
+                Integer questionId = parseId(request.getPathInfo());
+                if (questionId == null) {
+                    sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid question ID");
+                    return;
+                }
+                handleDeleteQuestion(request, response, questionId, userId);
+            }
+            // Route: /tests/{id} (Deactivate Test)
+            else if (uri.contains("/tests/")) {
+                Integer testId = parseId(request.getPathInfo());
+                if (testId == null) {
+                    sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid test ID");
+                    return;
+                }
+                handleDeactivateTest(request, response, testId, userId);
+            } else {
+                sendError(response, HttpServletResponse.SC_NOT_FOUND, "Endpoint not found");
+            }
         } catch (Exception e) {
             sendError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                     "Internal server error: " + e.getMessage());
         }
     }
 
-    private void handleCreateTest(HttpServletRequest request, HttpServletResponse response,
-                                  Integer userId) throws IOException {
-        ApplicationContext ctx = getAppContext();
-        UseCase<CreateTestRequest, Integer> createTestUseCase = ctx.getCreateTestUseCase();
-
-        CreateTestRequestDto testRequest = readJson(request, CreateTestRequestDto.class);
-
-        if (testRequest.title == null || testRequest.title.isBlank()) {
-            sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Title is required");
-            return;
-        }
-
-        try {
-            CreateTestRequest createRequest = new CreateTestRequest(
-                    userId,
-                    sanitizeInput(testRequest.title),
-                    sanitizeInput(testRequest.description),
-                    testRequest.timeLimit,
-                    testRequest.maxAttempts,
-                    testRequest.startTime,
-                    testRequest.endTime
-            );
-
-            Integer testId = createTestUseCase.execute(createRequest);
-
-            Map<String, Object> result = new HashMap<>();
-            result.put("testId", testId);
-            sendSuccess(response, result);
-        } catch (IllegalArgumentException e) {
-            sendError(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
-        }
-    }
+    // ==========================================
+    // TEST HANDLERS
+    // ==========================================
 
     private void handleGetAllTests(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
@@ -194,9 +301,12 @@ public class TestServlet extends BaseServlet {
         int start = (page - 1) * limit;
         int end = Math.min(start + limit, total);
 
-        List<Map<String, Object>> tests = allTests.subList(start, end).stream()
-                .map(this::convertToMap)
-                .collect(Collectors.toList());
+        List<Map<String, Object>> tests = new ArrayList<>();
+        if (start < total) {
+            tests = allTests.subList(start, end).stream()
+                    .map(this::convertTestToMap)
+                    .collect(Collectors.toList());
+        }
 
         Map<String, Object> result = new HashMap<>();
         result.put("tests", tests);
@@ -215,9 +325,42 @@ public class TestServlet extends BaseServlet {
 
         Optional<Test> test = testService.getTest(testId);
         if (test.isPresent()) {
-            sendSuccess(response, convertToMap(test.get()));
+            sendSuccess(response, convertTestToMap(test.get()));
         } else {
             sendError(response, HttpServletResponse.SC_NOT_FOUND, "Test not found");
+        }
+    }
+
+    private void handleCreateTest(HttpServletRequest request, HttpServletResponse response,
+                                  Integer userId) throws IOException {
+        ApplicationContext ctx = getAppContext();
+        UseCase<CreateTestRequest, Integer> createTestUseCase = ctx.getCreateTestUseCase();
+
+        CreateTestRequestDto testRequest = readJson(request, CreateTestRequestDto.class);
+
+        if (testRequest.title == null || testRequest.title.isBlank()) {
+            sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Title is required");
+            return;
+        }
+
+        try {
+            CreateTestRequest createRequest = new CreateTestRequest(
+                    userId,
+                    sanitizeInput(testRequest.title),
+                    sanitizeInput(testRequest.description),
+                    testRequest.timeLimit,
+                    testRequest.maxAttempts,
+                    testRequest.startTime,
+                    testRequest.endTime
+            );
+
+            Integer testId = createTestUseCase.execute(createRequest);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("testId", testId);
+            sendSuccess(response, result);
+        } catch (IllegalArgumentException e) {
+            sendError(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
         }
     }
 
@@ -358,7 +501,192 @@ public class TestServlet extends BaseServlet {
         sendSuccess(response, statistics);
     }
 
-    private Map<String, Object> convertToMap(Test test) {
+    // ==========================================
+    // QUESTION HANDLERS
+    // ==========================================
+
+    private void handleGetQuestions(HttpServletRequest request, HttpServletResponse response,
+                                    Integer testId) throws IOException {
+        ApplicationContext ctx = getAppContext();
+        TestService testService = ctx.getTestService();
+
+        Optional<Test> test = testService.getTest(testId);
+        if (test.isEmpty()) {
+            sendError(response, HttpServletResponse.SC_NOT_FOUND, "Test not found");
+            return;
+        }
+
+        List<Question> questions = testService.getQuestions(testId);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("questions", questions.stream()
+                .map(this::convertQuestionToMap)
+                .collect(Collectors.toList()));
+
+        sendSuccess(response, result);
+    }
+
+    private void handleAddQuestion(HttpServletRequest request, HttpServletResponse response,
+                                   Integer testId, Integer userId) throws IOException {
+        ApplicationContext ctx = getAppContext();
+        TestService testService = ctx.getTestService();
+
+        Optional<Test> test = testService.getTest(testId);
+        if (!test.isPresent()) {
+            sendError(response, HttpServletResponse.SC_NOT_FOUND, "Test not found");
+            return;
+        }
+
+        if (!test.get().getCreatedBy().equals(userId)) {
+            sendError(response, HttpServletResponse.SC_FORBIDDEN,
+                    "Only test creator can add questions");
+            return;
+        }
+
+        AddQuestionRequestDto questionRequest = readJson(request, AddQuestionRequestDto.class);
+
+        if (questionRequest.text == null || questionRequest.text.isBlank()) {
+            sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Question text is required");
+            return;
+        }
+
+        try {
+            Integer questionId = testService.addQuestion(
+                    testId,
+                    sanitizeInput(questionRequest.text),
+                    questionRequest.answerType,
+                    questionRequest.maxPoints
+            );
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("questionId", questionId);
+            sendSuccess(response, result);
+        } catch (IllegalArgumentException e) {
+            sendError(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
+        }
+    }
+
+    private void handleUpdateQuestion(HttpServletRequest request, HttpServletResponse response,
+                                      Integer questionId, Integer userId) throws IOException {
+        ApplicationContext ctx = getAppContext();
+        TestService testService = ctx.getTestService();
+
+        Optional<Question> questionOpt = testService.getQuestionById(questionId);
+        if (!questionOpt.isPresent()) {
+            sendError(response, HttpServletResponse.SC_NOT_FOUND, "Question not found");
+            return;
+        }
+
+        Question question = questionOpt.get();
+        Optional<Test> test = testService.getTest(question.getTestId());
+
+        if (!test.isPresent()) {
+            sendError(response, HttpServletResponse.SC_NOT_FOUND, "Test not found");
+            return;
+        }
+
+        if (!test.get().getCreatedBy().equals(userId)) {
+            sendError(response, HttpServletResponse.SC_FORBIDDEN,
+                    "Only test creator can update questions");
+            return;
+        }
+
+        UpdateQuestionRequestDto updateRequest = readJson(request, UpdateQuestionRequestDto.class);
+
+        if (updateRequest.text != null) {
+            question.setText(sanitizeInput(updateRequest.text));
+        }
+        if (updateRequest.answerType != null) {
+            question.setAnswerType(updateRequest.answerType);
+        }
+        if (updateRequest.maxPoints != null) {
+            question.setMaxPoints(updateRequest.maxPoints);
+        }
+
+        testService.saveQuestion(question);
+        sendSuccess(response, null);
+    }
+
+    private void handleDeleteQuestion(HttpServletRequest request, HttpServletResponse response,
+                                      Integer questionId, Integer userId) throws IOException {
+        ApplicationContext ctx = getAppContext();
+        TestService testService = ctx.getTestService();
+
+        Optional<Question> questionOpt = testService.getQuestionById(questionId);
+        if (!questionOpt.isPresent()) {
+            sendError(response, HttpServletResponse.SC_NOT_FOUND, "Question not found");
+            return;
+        }
+
+        Question question = questionOpt.get();
+        Optional<Test> test = testService.getTest(question.getTestId());
+
+        if (!test.isPresent()) {
+            sendError(response, HttpServletResponse.SC_NOT_FOUND, "Test not found");
+            return;
+        }
+
+        if (!test.get().getCreatedBy().equals(userId)) {
+            sendError(response, HttpServletResponse.SC_FORBIDDEN,
+                    "Only test creator can delete questions");
+            return;
+        }
+
+        testService.deleteQuestionById(questionId);
+        sendSuccess(response, null);
+    }
+
+    private void handleGetOptions(HttpServletRequest request, HttpServletResponse response,
+                                  Integer questionId) throws IOException {
+        ApplicationContext ctx = getAppContext();
+        // Assuming TestService handles options or you have an OptionService
+        TestService testService = ctx.getTestService();
+
+        // Check if question exists
+        Optional<Question> question = testService.getQuestionById(questionId);
+        if (question.isEmpty()) {
+            sendError(response, HttpServletResponse.SC_NOT_FOUND, "Question not found");
+            return;
+        }
+
+        // Fetch options (Update your service/domain model if getOptions doesn't exist yet)
+        List<com.github.john_g1t.domain.model.AnswerOption> options = testService.getOptions(questionId);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("options", options.stream()
+                .map(opt -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", opt.getId());
+                    map.put("questionId", opt.getQuestionId());
+                    map.put("optionText", opt.getOptionText());
+                    // We typically don't send 'isCorrect' to the client during a test
+                    return map;
+                })
+                .collect(Collectors.toList()));
+
+        sendSuccess(response, result);
+    }
+
+    // Add this helper for cleaner URI parsing
+    private Integer extractIdFromUriSegment(String uri, String segment) {
+        String[] parts = uri.split("/");
+        for (int i = 0; i < parts.length - 1; i++) {
+            if (segment.equals(parts[i])) {
+                try {
+                    return Integer.parseInt(parts[i + 1]);
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    // ==========================================
+    // UTILITIES
+    // ==========================================
+
+    private Map<String, Object> convertTestToMap(Test test) {
         Map<String, Object> map = new HashMap<>();
         map.put("id", test.getId());
         map.put("creatorId", test.getCreatedBy());
@@ -372,13 +700,40 @@ public class TestServlet extends BaseServlet {
         return map;
     }
 
+    private Map<String, Object> convertQuestionToMap(Question question) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", question.getId());
+        map.put("testId", question.getTestId());
+        map.put("text", question.getText());
+        map.put("answerType", question.getAnswerType());
+        map.put("maxPoints", question.getMaxPoints());
+        return map;
+    }
+
     private Integer parseIdFromPath(String pathInfo, String suffix) {
         if (pathInfo == null) return null;
         String idPart = pathInfo.replace(suffix, "");
         return parseId(idPart);
     }
 
-    // Request DTOs
+    private Integer extractTestIdFromUri(String uri) {
+        String[] parts = uri.split("/");
+        for (int i = 0; i < parts.length - 1; i++) {
+            if ("tests".equals(parts[i])) {
+                try {
+                    return Integer.parseInt(parts[i + 1]);
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    // ==========================================
+    // DTOs
+    // ==========================================
+
     private static class CreateTestRequestDto {
         public String title;
         public String description;
@@ -395,5 +750,17 @@ public class TestServlet extends BaseServlet {
         public Integer maxAttempts;
         public ZonedDateTime startTime;
         public ZonedDateTime endTime;
+    }
+
+    private static class AddQuestionRequestDto {
+        public String text;
+        public String answerType;
+        public Integer maxPoints;
+    }
+
+    private static class UpdateQuestionRequestDto {
+        public String text;
+        public String answerType;
+        public Integer maxPoints;
     }
 }

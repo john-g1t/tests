@@ -18,9 +18,14 @@ export const testsApi = {
     creatorId?: number;
     search?: string;
   }) => {
-    const query = new URLSearchParams(
-      params as Record<string, string>
-    ).toString();
+    console.log(params?.page, params?.limit);
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', params.page.toString());
+    if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.active !== undefined) query.append('active', String(params.active));
+    if (params?.creatorId) query.append('creatorId', params.creatorId.toString());
+    if (params?.search) query.append('search', params.search);
+    console.log(query);
     return api.get<{ tests: Test[] } & PaginatedResponse<Test>>(
       `/tests${query ? `?${query}` : ''}`
     );

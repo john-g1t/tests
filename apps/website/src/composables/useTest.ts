@@ -11,7 +11,7 @@ export function useTests() {
   const pagination = ref({
     total: 0,
     page: 1,
-    limit: 20,
+    limit: 5,
     totalPages: 0,
   });
 
@@ -30,7 +30,7 @@ export function useTests() {
       pagination.value = {
         total: response.total,
         page: response.page,
-        limit: response.limit,
+        limit: pagination.value.limit,
         totalPages: response.totalPages,
       };
     } catch (e) {

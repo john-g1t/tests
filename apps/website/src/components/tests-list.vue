@@ -3,6 +3,8 @@ import { onMounted, ref } from 'vue';
 import { useTests } from '@/composables/useTest';
 import TestCard from '@/components/test-card.vue';
 
+const limit = 5
+
 const emit = defineEmits<{
   viewTest: [id: number];
 }>();
@@ -18,16 +20,18 @@ onMounted(() => {
 const loadTests = () => {
   fetchTests({
     page: pagination.value.page,
+    limit,
     search: searchQuery.value || '',
-    active: activeOnly.value || '',
+    active: activeOnly.value || false,
   });
 };
 
 const changePage = (page: number) => {
   fetchTests({
     page,
-    search: searchQuery.value || undefined,
-    active: activeOnly.value || undefined,
+    limit: pagination.value.limit,
+    search: searchQuery.value || '',
+    active: activeOnly.value,
   });
 };
 </script>

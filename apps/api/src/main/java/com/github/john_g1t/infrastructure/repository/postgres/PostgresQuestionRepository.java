@@ -13,7 +13,7 @@ import java.util.Optional;
 
 public class PostgresQuestionRepository implements QuestionRepository {
     private static final String INSERT = "INSERT INTO questions (test_id, text, answer_type, max_points) " +
-            "VALUES (?, ?, ?, ?) RETURNING id";
+            "VALUES (?, ?, ?::answer_type, ?) RETURNING id";
     private static final String UPDATE = "UPDATE questions SET test_id = ?, text = ?, answer_type = ?, max_points = ? WHERE id = ?";
     private static final String FIND_BY_ID = "SELECT id, test_id, text, answer_type, max_points FROM questions WHERE id = ?";
     private static final String FIND_BY_TEST_ID = "SELECT id, test_id, text, answer_type, max_points FROM questions WHERE test_id = ?";
@@ -54,7 +54,7 @@ public class PostgresQuestionRepository implements QuestionRepository {
     }
 
     private void update(Question question) {
-        try (PreparedStatement stmt = connection.prepareStatement(INSERT)) {
+        try (PreparedStatement stmt = connection.prepareStatement(UPDATE)) {
             stmt.setInt(1, question.getTestId());
             stmt.setString(2, question.getText());
             stmt.setString(3, question.getAnswerType());

@@ -24,13 +24,21 @@ onMounted(async () => {
 
 <style>
 .app {
-  min-height: 100vh;
-  background: #f5f5f5;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .container {
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 95%;
   padding: 2rem 1rem;
+  flex: 1;
+  overflow: scroll;
+  align-self: center;
 }
 </style>

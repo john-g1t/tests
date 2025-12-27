@@ -6,7 +6,7 @@ export const questionsApi = {
     testId: number,
     data: {
       text: string;
-      answerType: 'MULTIPLE_CHOICE' | 'TEXT' | 'NUMERIC';
+      answerType: 'single_choice' | 'multiple_choice' | 'text';
       maxPoints: number;
     }
   ) => api.post<{ questionId: number }>(`/tests/${testId}/questions`, data),
@@ -18,7 +18,7 @@ export const questionsApi = {
     id: number,
     data: {
       text?: string;
-      answerType?: 'MULTIPLE_CHOICE' | 'TEXT' | 'NUMERIC';
+      answerType?: 'single_choice' | 'multiple_choice' | 'text';
       maxPoints?: number;
     }
   ) => api.put<null>(`/questions/${id}`, data),

@@ -134,4 +134,11 @@ public class TestServiceImpl implements TestService {
     public void deleteQuestionById(Integer questionId) {
         this.questionRepository.delete(questionId);
     }
+
+    @Override
+    public List<AnswerOption> getOptions(Integer questionId) {
+        return this.answerOptionRepository.findByQuestionId(questionId);
+    }
+
+
 }

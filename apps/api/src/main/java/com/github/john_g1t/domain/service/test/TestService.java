@@ -26,4 +26,5 @@ public interface TestService {
     void saveTest(Test test);
     void saveQuestion(Question question);
     void deleteQuestionById(Integer questionId);
+    List<AnswerOption> getOptions(Integer questionId);
 }

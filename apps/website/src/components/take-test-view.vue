@@ -1,208 +1,240 @@
 <script setup lang="ts">
-import { onMounted, ref, computed, onUnmounted } from 'vue';
+import { onMounted, onUnmounted, ref, computed, watch } from 'vue';
 import { useAttempts } from '@/composables/useAttempts';
 import { questionsApi } from '@/api/question';
 import type { Question, AnswerOption } from '@/types/types';
 
-const props = defineProps<{
-  attemptId: number;
-}>();
+type AnswerType = 'single_choice' | 'multiple_choice' | 'text';
 
-const emit = defineEmits<{
-  finished: [];
-}>();
+const props = defineProps<{ attemptId: number }>();
+const emit = defineEmits<{ finished: [] }>();
 
-const { currentAttempt, fetchAttemptProgress, submitAnswer, finishAttempt } = useAttempts();
+const {
+  currentAttempt,
+  fetchAttemptProgress,
+  submitAnswer,
+  finishAttempt,
+} = useAttempts();
+
+/* -------------------- state -------------------- */
 
 const questions = ref<Question[]>([]);
 const answerOptions = ref<Record<number, AnswerOption[]>>({});
+const answeredSet = ref<Set<number>>(new Set());
+
+// Track current answer only for the active question
+const currentAnswerIds = ref<number[]>([]);
+const currentAnswerText = ref('');
+
 const currentQuestionIndex = ref(0);
-const selectedAnswerId = ref<number | null>(null);
-const textAnswer = ref('');
-const timerInterval = ref<number | null>(null);
+const isLoading = ref(true);
+const hasFinished = ref(false);
+
+/* -------------------- timer -------------------- */
+
+const localTimeRemaining = ref(0);
+let timer: number | null = null;
+
+/* -------------------- computed -------------------- */
 
 const currentQuestion = computed(() => questions.value[currentQuestionIndex.value]);
 
-const isAnswered = computed(() => {
-  if (!currentQuestion.value) return false;
-  return currentAttempt.value?.answeredQuestions.includes(currentQuestion.value.id) || false;
-});
+const isAnswered = computed(() =>
+  currentQuestion.value ? answeredSet.value.has(currentQuestion.value.id) : false
+);
 
-const formattedTimeRemaining = computed(() => {
-  const seconds = currentAttempt.value?.timeRemaining || 0;
-  const minutes = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${minutes}:${secs.toString().padStart(2, '0')}`;
-});
-
-const isTimeCritical = computed(() => {
-  return currentAttempt.value && currentAttempt.value.timeRemaining < 300;
-});
-
-onMounted(async () => {
-  await fetchAttemptProgress(props.attemptId);
+/**
+ * PROXY COMPUTED:
+ * This solves the "radio vs checkbox" v-model conflict.
+ * It forces radio selections to be stored in our array, enabling the submit button.
+ */
+const selectedIds = computed<(number | undefined)[]>({
+  get: () => currentAnswerIds.value,
   
-  if (currentAttempt.value) {
-    const response = await questionsApi.getQuestions(currentAttempt.value.testId);
-    questions.value = response.questions;
+  set: (val) => {
+    // 1. Ensure val is an array (v-model sometimes passes a single value for radio)
+    const incoming = Array.isArray(val) ? val : [val];
     
-    for (const question of questions.value) {
-      if (question.answerType === 'MULTIPLE_CHOICE') {
-        const options = await questionsApi.getAnswerOptions(question.id);
-        answerOptions.value[question.id] = options.options;
+    // 2. Filter to strictly numbers using a Type Guard
+    const cleanVal = incoming.filter((v): v is number => typeof v === 'number');
+
+    if (currentQuestion.value?.answerType === 'single_choice') {
+      // Radio logic: only keep the most recent selection
+      if (cleanVal.length === 0) {
+        currentAnswerIds.value = [];
+        return;
+      } else {
+        let last = cleanVal[cleanVal.length - 1]!;
+        currentAnswerIds.value = [last];
       }
+    } else {
+      // Checkbox logic: keep the whole array
+      currentAnswerIds.value = cleanVal;
     }
   }
-  
-  timerInterval.value = window.setInterval(async () => {
-    await fetchAttemptProgress(props.attemptId);
-    
-    if (currentAttempt.value && currentAttempt.value.timeRemaining <= 0) {
+});
+
+const formattedTime = computed(() => {
+  const m = Math.floor(localTimeRemaining.value / 60);
+  const s = localTimeRemaining.value % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+});
+
+const isTimeCritical = computed(() => localTimeRemaining.value < 300);
+
+const progressPercent = computed(() =>
+  questions.value.length ? (answeredSet.value.size / questions.value.length) * 100 : 0
+);
+
+const canFinish = computed(() => answeredSet.value.size === questions.value.length);
+
+/* -------------------- sync & reset -------------------- */
+
+watch(() => currentAttempt.value?.answeredQuestions, (list) => {
+  if (list) answeredSet.value = new Set(list);
+}, { immediate: true });
+
+// Reset local answer state when the question changes
+watch(currentQuestionIndex, () => {
+  currentAnswerIds.value = [];
+  currentAnswerText.value = '';
+});
+
+/* -------------------- lifecycle -------------------- */
+
+onMounted(async () => {
+  try {
+    const progress = await fetchAttemptProgress(props.attemptId);
+    if (!progress) return;
+
+    localTimeRemaining.value = progress.timeRemaining;
+
+    const qRes = await questionsApi.getQuestions(progress.testId);
+    questions.value = qRes.questions;
+
+    // Load options for all choice questions up front
+    await Promise.all(
+      questions.value.map(async (q) => {
+        if (q.answerType === 'single_choice' || q.answerType === 'multiple_choice') {
+          const o = await questionsApi.getAnswerOptions(q.id);
+          answerOptions.value[q.id] = o.options ?? [];
+        }
+      })
+    );
+
+    startTimer();
+  } finally {
+    isLoading.value = false;
+  }
+});
+
+onUnmounted(() => { if (timer) clearInterval(timer); });
+
+/* -------------------- logic -------------------- */
+
+function startTimer() {
+  timer = window.setInterval(async () => {
+    if (hasFinished.value) return;
+    if (localTimeRemaining.value > 0) {
+      localTimeRemaining.value--;
+    } else {
       await handleFinish();
     }
   }, 1000);
-});
+}
 
-onUnmounted(() => {
-  if (timerInterval.value) {
-    clearInterval(timerInterval.value);
+async function handleSubmitAnswer() {
+  if (!currentQuestion.value || isAnswered.value) return;
+
+  const q = currentQuestion.value;
+  let payload: any;
+
+  if (q.answerType === 'single_choice') {
+    payload = { questionId: q.id, answerId: currentAnswerIds.value[0] };
+  } else if (q.answerType === 'multiple_choice') {
+    payload = { questionId: q.id, answerIds: currentAnswerIds.value };
+  } else {
+    payload = { questionId: q.id, answerText: currentAnswerText.value };
   }
-});
 
-const handleSubmitAnswer = async () => {
-  if (!currentQuestion.value) return;
-  
-  try {
-    if (currentQuestion.value.answerType === 'MULTIPLE_CHOICE') {
-      if (selectedAnswerId.value) {
-        await submitAnswer(props.attemptId, {
-          questionId: currentQuestion.value.id,
-          answerId: selectedAnswerId.value,
-        });
-      }
-    } else {
-      await submitAnswer(props.attemptId, {
-        questionId: currentQuestion.value.id,
-        answerText: textAnswer.value,
-      });
-    }
-    
-    selectedAnswerId.value = null;
-    textAnswer.value = '';
-    
-    if (currentQuestionIndex.value < questions.value.length - 1) {
-      currentQuestionIndex.value++;
-    }
-  } catch (e) {
-    console.error('Failed to submit answer:', e);
-  }
-};
+  await submitAnswer(props.attemptId, payload);
+  answeredSet.value.add(q.id);
 
-const handleFinish = async () => {
-  if (timerInterval.value) {
-    clearInterval(timerInterval.value);
-  }
-  
-  try {
-    const result = await finishAttempt(props.attemptId);
-    alert(`Test completed! Score: ${result.score}/${result.maxScore} (${result.percentage.toFixed(1)}%)`);
-    emit('finished');
-  } catch (e) {
-    console.error('Failed to finish attempt:', e);
-  }
-};
-
-const goToQuestion = (index: number) => {
-  currentQuestionIndex.value = index;
-  selectedAnswerId.value = null;
-  textAnswer.value = '';
-};
-
-const nextQuestion = () => {
   if (currentQuestionIndex.value < questions.value.length - 1) {
     currentQuestionIndex.value++;
-    selectedAnswerId.value = null;
-    textAnswer.value = '';
   }
-};
+}
 
-const previousQuestion = () => {
-  if (currentQuestionIndex.value > 0) {
-    currentQuestionIndex.value--;
-    selectedAnswerId.value = null;
-    textAnswer.value = '';
-  }
-};
+async function handleFinish() {
+  if (hasFinished.value) return;
+  hasFinished.value = true;
+  if (timer) clearInterval(timer);
+  const result = await finishAttempt(props.attemptId);
+  alert(`Test Finished\nScore: ${result.score}/${result.maxScore} (${result.percentage}%)`);
+  emit('finished');
+}
+
+function goToQuestion(i: number) { currentQuestionIndex.value = i; }
 </script>
 
 <template>
-  <div class="take-test">
+  <div v-if="isLoading" class="loading-state">
+    <p>Loading questions, please wait...</p>
+  </div>
+
+  <div v-else class="take-test">
     <div class="test-header">
       <h2>Taking Test</h2>
       <div class="timer" :class="{ critical: isTimeCritical }">
-        Time Remaining: {{ formattedTimeRemaining }}
+        Time Remaining: {{ formattedTime }}
       </div>
     </div>
 
     <div class="progress-bar">
-      <div class="progress-info">
-        Question {{ currentQuestionIndex + 1 }} of {{ questions.length }}
-      </div>
+      <div class="progress-info">Answered {{ answeredSet.size }} of {{ questions.length }}</div>
       <div class="progress">
-        <div
-          class="progress-fill"
-          :style="{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }"
-        />
+        <div class="progress-fill" :style="{ width: `${progressPercent}%` }" />
       </div>
     </div>
 
     <div v-if="currentQuestion" class="question-section">
-      <h3>{{ currentQuestion.text }}</h3>
       <div class="points-badge">{{ currentQuestion.maxPoints }} points</div>
+      <h3>{{ currentQuestion.text }}</h3>
 
-      <div v-if="currentQuestion.answerType === 'MULTIPLE_CHOICE'" class="options">
+      <div v-if="currentQuestion.answerType !== 'text'" class="options">
         <label
-          v-for="option in answerOptions[currentQuestion.id]"
+          v-for="option in answerOptions[currentQuestion.id] || []"
           :key="option.id"
           class="option"
-          :class="{ selected: selectedAnswerId === option.id }"
+          :class="{ selected: currentAnswerIds.includes(option.id) }"
         >
           <input
-            v-model="selectedAnswerId"
-            type="radio"
+            :type="currentQuestion.answerType === 'single_choice' ? 'radio' : 'checkbox'"
             :value="option.id"
+            v-model="selectedIds"
             :disabled="isAnswered"
           />
           <span>{{ option.optionText }}</span>
         </label>
       </div>
 
-      <div v-else-if="currentQuestion.answerType === 'TEXT'">
-        <textarea
-          v-model="textAnswer"
-          :disabled="isAnswered"
-          rows="6"
-          placeholder="Enter your answer..."
-        />
-      </div>
+      <textarea
+        v-else
+        v-model="currentAnswerText"
+        class="input-field"
+        rows="6"
+        :disabled="isAnswered"
+        placeholder="Type your answer here..."
+      />
 
-      <div v-else-if="currentQuestion.answerType === 'NUMERIC'">
-        <input
-          v-model="textAnswer"
-          :disabled="isAnswered"
-          type="number"
-          placeholder="Enter numeric answer..."
-        />
-      </div>
-
-      <div v-if="isAnswered" class="answered-badge">✓ Already answered</div>
+      <div v-if="isAnswered" class="answered-badge">✓ Answer Submitted</div>
     </div>
 
     <div class="actions">
-      <button
-        @click="previousQuestion"
+      <button 
+        class="btn" 
+        @click="goToQuestion(currentQuestionIndex - 1)" 
         :disabled="currentQuestionIndex === 0"
-        class="btn"
       >
         Previous
       </button>
@@ -210,45 +242,30 @@ const previousQuestion = () => {
       <div class="actions-right">
         <button
           v-if="!isAnswered"
-          @click="handleSubmitAnswer"
-          :disabled="currentQuestion?.answerType === 'MULTIPLE_CHOICE' ? !selectedAnswerId : !textAnswer"
           class="btn btn-primary"
+          @click="handleSubmitAnswer"
+          :disabled="currentQuestion?.answerType === 'text' ? !currentAnswerText.trim() : !currentAnswerIds.length"
         >
           Submit Answer
         </button>
 
-        <button
-          v-if="currentQuestionIndex < questions.length - 1"
-          @click="nextQuestion"
-          class="btn"
-        >
+        <button v-if="currentQuestionIndex < questions.length - 1" class="btn" @click="goToQuestion(currentQuestionIndex + 1)">
           Next
         </button>
-
-        <button
-          v-if="currentQuestionIndex === questions.length - 1"
-          @click="handleFinish"
-          class="btn btn-success"
-        >
+        <button v-else class="btn btn-success" @click="handleFinish" :disabled="!canFinish && localTimeRemaining > 0">
           Finish Test
         </button>
       </div>
     </div>
 
     <div class="question-nav">
-      <h4>Question Navigator</h4>
+      <h4>Navigator</h4>
       <div class="nav-grid">
         <button
-          v-for="(q, index) in questions"
-          :key="q.id"
+          v-for="(q, index) in questions" :key="q.id"
+          class="nav-btn"
+          :class="{ current: index === currentQuestionIndex, answered: answeredSet.has(q.id) }"
           @click="goToQuestion(index)"
-          :class="[
-            'nav-btn',
-            { 
-              current: index === currentQuestionIndex,
-              answered: currentAttempt?.answeredQuestions.includes(q.id)
-            }
-          ]"
         >
           {{ index + 1 }}
         </button>

@@ -5,36 +5,21 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="fec200c5-9779-4dbb-a41a-bc5814c9cdde" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/presentation/web/dto/JsonResponse.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/presentation/web/dto/PaginatedResponse.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/presentation/web/filter/AuthFilter.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/presentation/web/filter/XssFilter.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/presentation/web/listener/AppContextListener.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/presentation/web/servlet/AnswerOptionServlet.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/presentation/web/servlet/BaseServlet.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/presentation/web/servlet/QuestionServlet.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/presentation/web/servlet/StatisticsServlet.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/presentation/web/servlet/TestAttemptServlet.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/presentation/web/servlet/TestServlet.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/presentation/web/servlet/UserServlet.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gradle/wrapper/gradle-wrapper.jar" beforeDir="false" afterPath="$PROJECT_DIR$/gradle/wrapper/gradle-wrapper.jar" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gradle/wrapper/gradle-wrapper.properties" beforeDir="false" afterPath="$PROJECT_DIR$/gradle/wrapper/gradle-wrapper.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gradlew" beforeDir="false" afterPath="$PROJECT_DIR$/gradlew" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gradlew.bat" beforeDir="false" afterPath="$PROJECT_DIR$/gradlew.bat" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/Main.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/Main.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/app/dto/TestDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/app/dto/TestDto.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/domain/service/PasswordGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/domain/service/PasswordGenerator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/domain/service/user/UserServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/domain/service/user/UserServiceImpl.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/infrastructure/repository/postgres/PostgresConnectionFactory.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/infrastructure/repository/postgres/PostgresConnectionFactory.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/infrastructure/repository/postgres/PostgresTestAttemptRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/infrastructure/repository/postgres/PostgresTestAttemptRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/infrastructure/repository/postgres/PostgresTestRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/infrastructure/repository/postgres/PostgresTestRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/infrastructure/repository/postgres/PostgresUserRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/infrastructure/repository/postgres/PostgresUserRepository.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/../../docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/domain/service/test/TestService.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/domain/service/test/TestService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/domain/service/test/TestServiceImpl.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/domain/service/test/TestServiceImpl.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/infrastructure/repository/postgres/PostgresQuestionRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/infrastructure/repository/postgres/PostgresQuestionRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/presentation/web/servlet/AnswerOptionServlet.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/presentation/web/servlet/AnswerOptionServlet.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/presentation/web/servlet/QuestionServlet.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/presentation/web/servlet/TestServlet.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/github/john_g1t/presentation/web/servlet/TestServlet.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../website/src/api/question.ts" beforeDir="false" afterPath="$PROJECT_DIR$/../website/src/api/question.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../website/src/app.vue" beforeDir="false" afterPath="$PROJECT_DIR$/../website/src/app.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../website/src/components/create-test-form.vue" beforeDir="false" afterPath="$PROJECT_DIR$/../website/src/components/create-test-form.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../website/src/components/take-test-view.vue" beforeDir="false" afterPath="$PROJECT_DIR$/../website/src/components/take-test-view.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../website/src/components/tests-list.vue" beforeDir="false" afterPath="$PROJECT_DIR$/../website/src/components/tests-list.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../website/src/composables/useAttempts.ts" beforeDir="false" afterPath="$PROJECT_DIR$/../website/src/composables/useAttempts.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../website/src/composables/useTest.ts" beforeDir="false" afterPath="$PROJECT_DIR$/../website/src/composables/useTest.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../website/src/types/types.ts" beforeDir="false" afterPath="$PROJECT_DIR$/../website/src/types/types.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

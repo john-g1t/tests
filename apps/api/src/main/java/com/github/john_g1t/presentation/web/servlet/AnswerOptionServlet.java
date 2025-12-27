@@ -137,6 +137,7 @@ public class AnswerOptionServlet extends BaseServlet {
         }
 
         try {
+            System.out.println(questionId);
             Integer optionId = testService.addAnswerOption(
                     questionId,
                     sanitizeInput(optionRequest.optionText),

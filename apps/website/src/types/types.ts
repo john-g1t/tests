@@ -24,7 +24,7 @@ export interface Question {
   id: number;
   testId: number;
   text: string;
-  answerType: 'MULTIPLE_CHOICE' | 'TEXT' | 'NUMERIC';
+  answerType: 'single_choice' | 'multiple_choice' | 'text';
   maxPoints: number;
   orderIndex: number;
 }

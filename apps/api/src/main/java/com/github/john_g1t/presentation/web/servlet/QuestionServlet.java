@@ -3,6 +3,7 @@ package com.github.john_g1t.presentation.web.servlet;
 import com.github.john_g1t.domain.model.Question;
 import com.github.john_g1t.domain.model.Test;
 import com.github.john_g1t.domain.service.test.TestService;
+import com.github.john_g1t.domain.repository.QuestionRepository;
 import com.github.john_g1t.infrastructure.ApplicationContext;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,15 +17,22 @@ public class QuestionServlet extends BaseServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
+        System.out.println("request");
         setCorsHeaders(response);
 
         String pathInfo = request.getPathInfo();
         String uri = request.getRequestURI();
-
+        System.out.println("aboba");
         try {
             if (uri.contains("/tests/") && uri.endsWith("/questions")) {
+                System.out.println("extracting");
                 Integer testId = extractTestIdFromUri(uri);
-                handleGetQuestions(request, response, testId);
+                System.out.println(testId);
+                if (testId != null) {
+                    handleGetQuestions(request, response, testId);
+                } else {
+                    sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid test ID");
+                }
             } else {
                 sendError(response, HttpServletResponse.SC_NOT_FOUND, "Endpoint not found");
             }
@@ -50,7 +58,11 @@ public class QuestionServlet extends BaseServlet {
         try {
             if (uri.contains("/tests/") && uri.endsWith("/questions")) {
                 Integer testId = extractTestIdFromUri(uri);
-                handleAddQuestion(request, response, testId, userId);
+                if (testId != null) {
+                    handleAddQuestion(request, response, testId, userId);
+                } else {
+                    sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid test ID");
+                }
             } else {
                 sendError(response, HttpServletResponse.SC_NOT_FOUND, "Endpoint not found");
             }
@@ -112,11 +124,12 @@ public class QuestionServlet extends BaseServlet {
 
     private void handleGetQuestions(HttpServletRequest request, HttpServletResponse response,
                                     Integer testId) throws IOException {
+        System.out.println("get questions");
         ApplicationContext ctx = getAppContext();
         TestService testService = ctx.getTestService();
 
         Optional<Test> test = testService.getTest(testId);
-        if (!test.isPresent()) {
+        if (test.isEmpty()) {
             sendError(response, HttpServletResponse.SC_NOT_FOUND, "Test not found");
             return;
         }
@@ -171,15 +184,73 @@ public class QuestionServlet extends BaseServlet {
         }
     }
 
-    private void handleUpdateQuestion(
-            HttpServletRequest request, HttpServletResponse response, Integer questionId, Integer userId
-    ) throws IOException {
+    private void handleUpdateQuestion(HttpServletRequest request, HttpServletResponse response,
+                                      Integer questionId, Integer userId) throws IOException {
+        ApplicationContext ctx = getAppContext();
+        TestService testService = ctx.getTestService();
+
+        Optional<Question> questionOpt = testService.getQuestionById(questionId);
+        if (!questionOpt.isPresent()) {
+            sendError(response, HttpServletResponse.SC_NOT_FOUND, "Question not found");
+            return;
+        }
+
+        Question question = questionOpt.get();
+        Optional<Test> test = testService.getTest(question.getTestId());
+
+        if (!test.isPresent()) {
+            sendError(response, HttpServletResponse.SC_NOT_FOUND, "Test not found");
+            return;
+        }
+
+        if (!test.get().getCreatedBy().equals(userId)) {
+            sendError(response, HttpServletResponse.SC_FORBIDDEN,
+                    "Only test creator can update questions");
+            return;
+        }
+
+        UpdateQuestionRequestDto updateRequest = readJson(request, UpdateQuestionRequestDto.class);
+
+        if (updateRequest.text != null) {
+            question.setText(sanitizeInput(updateRequest.text));
+        }
+        if (updateRequest.answerType != null) {
+            question.setAnswerType(updateRequest.answerType);
+        }
+        if (updateRequest.maxPoints != null) {
+            question.setMaxPoints(updateRequest.maxPoints);
+        }
+
+        testService.saveQuestion(question);
         sendSuccess(response, null);
     }
 
-    private void handleDeleteQuestion(
-            HttpServletRequest request, HttpServletResponse response, Integer questionId, Integer userId
-    ) throws IOException {
+    private void handleDeleteQuestion(HttpServletRequest request, HttpServletResponse response,
+                                      Integer questionId, Integer userId) throws IOException {
+        ApplicationContext ctx = getAppContext();
+        TestService testService = ctx.getTestService();
+
+        Optional<Question> questionOpt = testService.getQuestionById(questionId);
+        if (!questionOpt.isPresent()) {
+            sendError(response, HttpServletResponse.SC_NOT_FOUND, "Question not found");
+            return;
+        }
+
+        Question question = questionOpt.get();
+        Optional<Test> test = testService.getTest(question.getTestId());
+
+        if (!test.isPresent()) {
+            sendError(response, HttpServletResponse.SC_NOT_FOUND, "Test not found");
+            return;
+        }
+
+        if (!test.get().getCreatedBy().equals(userId)) {
+            sendError(response, HttpServletResponse.SC_FORBIDDEN,
+                    "Only test creator can delete questions");
+            return;
+        }
+
+        testService.deleteQuestionById(questionId);
         sendSuccess(response, null);
     }
 
@@ -208,6 +279,12 @@ public class QuestionServlet extends BaseServlet {
     }
 
     private static class AddQuestionRequestDto {
+        public String text;
+        public String answerType;
+        public Integer maxPoints;
+    }
+
+    private static class UpdateQuestionRequestDto {
         public String text;
         public String answerType;
         public Integer maxPoints;

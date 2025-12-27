@@ -3,6 +3,7 @@ package com.github.john_g1t.domain.service.test;
 import com.github.john_g1t.domain.model.AnswerOption;
 import com.github.john_g1t.domain.model.Question;
 import com.github.john_g1t.domain.model.Test;
+import com.github.john_g1t.domain.model.TestAttempt;
 import com.github.john_g1t.domain.repository.AnswerOptionRepository;
 import com.github.john_g1t.domain.repository.QuestionRepository;
 import com.github.john_g1t.domain.repository.TestRepository;
@@ -98,6 +99,11 @@ public class TestServiceImpl implements TestService {
     }
 
     @Override
+    public Optional<Question> getQuestionById(Integer questionId) {
+        return questionRepository.findById(questionId);
+    }
+
+    @Override
     public boolean isTestActive(Integer testId) {
         Optional<Test> test = getTest(testId);
         return test.map(Test::isActive).orElse(false);
@@ -111,5 +117,21 @@ public class TestServiceImpl implements TestService {
             t.setActive(false);
             testRepository.save(t);
         }
+    }
+
+    @Override
+    public void saveTest(Test test) {
+        this.testRepository.save(test);
+    }
+
+    @Override
+    public void saveQuestion(Question question) {
+        this.questionRepository.save(question);
+    }
+
+
+    @Override
+    public void deleteQuestionById(Integer questionId) {
+        this.questionRepository.delete(questionId);
     }
 }

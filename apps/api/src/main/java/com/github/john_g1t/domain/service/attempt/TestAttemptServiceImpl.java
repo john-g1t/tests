@@ -168,4 +168,9 @@ public class TestAttemptServiceImpl implements TestAttemptService {
     public List<UserAnswer> getAttemptAnswers(Integer attemptId) {
         return userAnswerRepository.findByAttemptId(attemptId);
     }
+
+    @Override
+    public List<TestAttempt> getByTestId(Integer testId) {
+        return this.attemptRepository.findByTestId(testId);
+    }
 }

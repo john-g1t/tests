@@ -94,6 +94,11 @@ public class UserServlet extends BaseServlet {
             return;
         }
 
+        if (registerRequest.password == null || registerRequest.password.isBlank()) {
+            sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Password is required");
+            return;
+        }
+
         if (!isValidEmail(registerRequest.email)) {
             sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid email format");
             return;
@@ -106,14 +111,15 @@ public class UserServlet extends BaseServlet {
                     sanitizeInput(registerRequest.firstName),
                     sanitizeInput(registerRequest.lastName)
             );
-            System.out.println(createRequest);
 
             Integer userId = createUserUseCase.execute(createRequest);
-
 
             Map<String, Object> result = new HashMap<>();
             result.put("userId", userId);
             sendSuccess(response, result);
+        } catch (IllegalStateException e) {
+            // Email already exists
+            sendError(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
         } catch (IllegalArgumentException e) {
             sendError(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
         }
@@ -126,6 +132,12 @@ public class UserServlet extends BaseServlet {
 
         LoginRequest loginRequest = readJson(request, LoginRequest.class);
 
+        if (loginRequest.email == null || loginRequest.password == null) {
+            sendError(response, HttpServletResponse.SC_BAD_REQUEST,
+                    "Email and password are required");
+            return;
+        }
+
         Optional<User> user = userService.authenticateUser(
                 sanitizeInput(loginRequest.email),
                 loginRequest.password
@@ -136,7 +148,7 @@ public class UserServlet extends BaseServlet {
             session.setAttribute("userId", user.get().getId());
             session.setMaxInactiveInterval(30 * 60); // 30 minutes
 
-            sendSuccess(response, convertToDto(user.get()));
+            sendSuccess(response, convertToFullDto(user.get()));
         } else {
             sendError(response, HttpServletResponse.SC_UNAUTHORIZED,
                     "Invalid email or password");
@@ -165,7 +177,7 @@ public class UserServlet extends BaseServlet {
 
         Optional<User> user = userService.findById(userId);
         if (user.isPresent()) {
-            sendSuccess(response, convertToDto(user.get()));
+            sendSuccess(response, convertToFullDto(user.get()));
         } else {
             sendError(response, HttpServletResponse.SC_NOT_FOUND, "User not found");
         }
@@ -186,17 +198,19 @@ public class UserServlet extends BaseServlet {
             String searchLower = search.toLowerCase();
             allUsers = allUsers.stream()
                     .filter(u -> u.getEmail().toLowerCase().contains(searchLower) ||
-                            u.getFirstName().toLowerCase().contains(searchLower) ||
-                            u.getLastName().toLowerCase().contains(searchLower))
-                    .toList();
+                            (u.getFirstName() != null &&
+                                    u.getFirstName().toLowerCase().contains(searchLower)) ||
+                            (u.getLastName() != null &&
+                                    u.getLastName().toLowerCase().contains(searchLower)))
+                    .collect(Collectors.toList());
         }
 
         int total = allUsers.size();
         int start = (page - 1) * limit;
         int end = Math.min(start + limit, total);
 
-        List<UserDto> users = allUsers.subList(start, end).stream()
-                .map(this::convertToDto)
+        List<Map<String, Object>> users = allUsers.subList(start, end).stream()
+                .map(this::convertToFullDto)
                 .collect(Collectors.toList());
 
         Map<String, Object> result = new HashMap<>();
@@ -216,7 +230,7 @@ public class UserServlet extends BaseServlet {
 
         Optional<User> user = userService.findById(userId);
         if (user.isPresent()) {
-            sendSuccess(response, convertToDto(user.get()));
+            sendSuccess(response, convertToFullDto(user.get()));
         } else {
             sendError(response, HttpServletResponse.SC_NOT_FOUND, "User not found");
         }
@@ -235,25 +249,33 @@ public class UserServlet extends BaseServlet {
 
         ChangePasswordRequest changeRequest = readJson(request, ChangePasswordRequest.class);
 
+        if (changeRequest.oldPassword == null || changeRequest.newPassword == null) {
+            sendError(response, HttpServletResponse.SC_BAD_REQUEST,
+                    "Old and new passwords are required");
+            return;
+        }
+
         try {
             userService.changePassword(userId, changeRequest.oldPassword,
                     changeRequest.newPassword);
             sendSuccess(response, null);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalStateException | IllegalArgumentException e) {
             sendError(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
         }
     }
 
-    private UserDto convertToDto(User user) {
-        return new UserDto(
-            user.getFirstName(),
-            user.getLastName()
-        );
+    private Map<String, Object> convertToFullDto(User user) {
+        Map<String, Object> dto = new HashMap<>();
+        dto.put("id", user.getId());
+        dto.put("email", user.getEmail());
+        dto.put("firstName", user.getFirstName());
+        dto.put("lastName", user.getLastName());
+        return dto;
     }
 
     private boolean isValidEmail(String email) {
         return true;
-//        return email != null && email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
+//        return email != null && email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
     }
 
     private static class RegisterRequest {

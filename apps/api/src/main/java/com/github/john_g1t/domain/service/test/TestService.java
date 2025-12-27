@@ -20,6 +20,10 @@ public interface TestService {
     List<Test> getTestsByCreator(Integer creatorId);
     List<Question> getQuestions(Integer testId);
     List<AnswerOption> getAnswerOptions(Integer questionId);
+    Optional<Question> getQuestionById(Integer questionId);
     boolean isTestActive(Integer testId);
     void deactivateTest(Integer testId);
+    void saveTest(Test test);
+    void saveQuestion(Question question);
+    void deleteQuestionById(Integer questionId);
 }

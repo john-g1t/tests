@@ -3,7 +3,12 @@ package com.github.john_g1t.presentation.web.servlet;
 import com.github.john_g1t.app.dto.TestDto;
 import com.github.john_g1t.app.usecase.UseCase;
 import com.github.john_g1t.app.usecase.test.CreateTestRequest;
+import com.github.john_g1t.domain.model.Question;
 import com.github.john_g1t.domain.model.Test;
+import com.github.john_g1t.domain.model.TestAttempt;
+import com.github.john_g1t.domain.repository.TestAttemptRepository;
+import com.github.john_g1t.domain.repository.TestRepository;
+import com.github.john_g1t.domain.service.attempt.TestAttemptService;
 import com.github.john_g1t.domain.service.test.TestService;
 import com.github.john_g1t.infrastructure.ApplicationContext;
 import jakarta.servlet.annotation.WebServlet;
@@ -189,8 +194,8 @@ public class TestServlet extends BaseServlet {
         int start = (page - 1) * limit;
         int end = Math.min(start + limit, total);
 
-        List<TestDto> tests = allTests.subList(start, end).stream()
-                .map(this::convertToDto)
+        List<Map<String, Object>> tests = allTests.subList(start, end).stream()
+                .map(this::convertToMap)
                 .collect(Collectors.toList());
 
         Map<String, Object> result = new HashMap<>();
@@ -210,7 +215,7 @@ public class TestServlet extends BaseServlet {
 
         Optional<Test> test = testService.getTest(testId);
         if (test.isPresent()) {
-            sendSuccess(response, convertToDto(test.get()));
+            sendSuccess(response, convertToMap(test.get()));
         } else {
             sendError(response, HttpServletResponse.SC_NOT_FOUND, "Test not found");
         }
@@ -227,13 +232,35 @@ public class TestServlet extends BaseServlet {
             return;
         }
 
-        if (!existingTest.get().getCreatedBy().equals(userId)) {
+        Test test = existingTest.get();
+        if (!test.getCreatedBy().equals(userId)) {
             sendError(response, HttpServletResponse.SC_FORBIDDEN,
                     "Only test creator can update the test");
             return;
         }
 
         UpdateTestRequestDto updateRequest = readJson(request, UpdateTestRequestDto.class);
+
+        if (updateRequest.title != null) {
+            test.setTitle(sanitizeInput(updateRequest.title));
+        }
+        if (updateRequest.description != null) {
+            test.setDescription(sanitizeInput(updateRequest.description));
+        }
+        if (updateRequest.timeLimit != null) {
+            test.setTimeLimit(updateRequest.timeLimit);
+        }
+        if (updateRequest.maxAttempts != null) {
+            test.setMaxAttempts(updateRequest.maxAttempts);
+        }
+        if (updateRequest.startTime != null) {
+            test.setStartTime(updateRequest.startTime);
+        }
+        if (updateRequest.endTime != null) {
+            test.setEndTime(updateRequest.endTime);
+        }
+
+        testService.saveTest(test);
         sendSuccess(response, null);
     }
 
@@ -262,6 +289,7 @@ public class TestServlet extends BaseServlet {
                                          Integer testId) throws IOException {
         ApplicationContext ctx = getAppContext();
         TestService testService = ctx.getTestService();
+        TestAttemptService attemptService = ctx.getAttemptService();
 
         Optional<Test> test = testService.getTest(testId);
         if (test.isEmpty()) {
@@ -269,30 +297,79 @@ public class TestServlet extends BaseServlet {
             return;
         }
 
+        // Get all attempts for this test
+        List<TestAttempt> attempts = attemptService.getByTestId(testId);
+
+        int totalAttempts = attempts.size();
+        int completedAttempts = 0;
+        double totalScore = 0;
+        int scoredAttempts = 0;
+        Integer maxScoreAchieved = null;
+        Integer minScoreAchieved = null;
+        int passedCount = 0;
+
+        // Calculate max possible score from questions
+        List<Question> questions = testService.getQuestions(testId);
+        int maxPossibleScore = questions.stream()
+                .mapToInt(q -> q.getMaxPoints() != null ? q.getMaxPoints() : 0)
+                .sum();
+
+        if (maxPossibleScore == 0) {
+            maxPossibleScore = 100; // fallback
+        }
+
+        final int passThreshold = (int) (maxPossibleScore * 0.6); // 60% to pass
+
+        for (TestAttempt attempt : attempts) {
+            if (attempt.getEndTime() != null) {
+                completedAttempts++;
+
+                if (attempt.getScore() != null) {
+                    int score = attempt.getScore();
+                    totalScore += score;
+                    scoredAttempts++;
+
+                    if (maxScoreAchieved == null || score > maxScoreAchieved) {
+                        maxScoreAchieved = score;
+                    }
+                    if (minScoreAchieved == null || score < minScoreAchieved) {
+                        minScoreAchieved = score;
+                    }
+
+                    if (score >= passThreshold) {
+                        passedCount++;
+                    }
+                }
+            }
+        }
+
+        double averageScore = scoredAttempts > 0 ? totalScore / scoredAttempts : 0.0;
+        double passRate = completedAttempts > 0 ? (passedCount * 100.0 / completedAttempts) : 0.0;
+
         Map<String, Object> statistics = new HashMap<>();
         statistics.put("testId", testId);
-        statistics.put("totalAttempts", 0);
-        statistics.put("completedAttempts", 0);
-        statistics.put("averageScore", 0.0);
-        statistics.put("maxScore", 100);
-        statistics.put("minScore", 0);
-        statistics.put("passRate", 0.0);
+        statistics.put("totalAttempts", totalAttempts);
+        statistics.put("completedAttempts", completedAttempts);
+        statistics.put("averageScore", Math.round(averageScore * 100.0) / 100.0);
+        statistics.put("maxScore", maxScoreAchieved != null ? maxScoreAchieved : 0);
+        statistics.put("minScore", minScoreAchieved != null ? minScoreAchieved : 0);
+        statistics.put("passRate", Math.round(passRate * 100.0) / 100.0);
 
         sendSuccess(response, statistics);
     }
 
-    private TestDto convertToDto(Test test) {
-        return new TestDto(
-                test.getId(),
-                test.getTitle(),
-                test.getDescription(),
-                test.getCreatedBy(),
-                test.getTimeLimit(),
-                test.getMaxAttempts(),
-                test.isActive(),
-                test.getStartTime(),
-                test.getEndTime()
-        );
+    private Map<String, Object> convertToMap(Test test) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", test.getId());
+        map.put("creatorId", test.getCreatedBy());
+        map.put("title", test.getTitle());
+        map.put("description", test.getDescription());
+        map.put("timeLimit", test.getTimeLimit());
+        map.put("maxAttempts", test.getMaxAttempts());
+        map.put("isActive", test.isActive());
+        map.put("startTime", test.getStartTime());
+        map.put("endTime", test.getEndTime());
+        return map;
     }
 
     private Integer parseIdFromPath(String pathInfo, String suffix) {

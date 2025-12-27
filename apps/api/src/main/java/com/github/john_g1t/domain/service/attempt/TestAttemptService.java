@@ -11,5 +11,6 @@ public interface TestAttemptService {
     Integer finishAttempt(Integer attemptId);
     Optional<TestAttempt> getAttempt(Integer attemptId);
     List<TestAttempt> getUserAttempts(Integer userId);
+    List<TestAttempt> getByTestId(Integer testId);
     List<UserAnswer> getAttemptAnswers(Integer attemptId);
 }

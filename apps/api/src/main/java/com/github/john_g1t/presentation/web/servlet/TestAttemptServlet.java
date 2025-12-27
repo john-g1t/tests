@@ -2,9 +2,9 @@ package com.github.john_g1t.presentation.web.servlet;
 
 import com.github.john_g1t.app.usecase.UseCase;
 import com.github.john_g1t.app.usecase.attempt.*;
-import com.github.john_g1t.domain.model.TestAttempt;
-import com.github.john_g1t.domain.model.UserAnswer;
+import com.github.john_g1t.domain.model.*;
 import com.github.john_g1t.domain.service.attempt.TestAttemptService;
+import com.github.john_g1t.domain.service.test.TestService;
 import com.github.john_g1t.infrastructure.ApplicationContext;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -97,6 +97,7 @@ public class TestAttemptServlet extends BaseServlet {
         UseCase<StartTestAttemptRequest, Integer> startTestAttemptUseCase =
                 ctx.getStartTestAttemptUseCase();
         TestAttemptService attemptService = ctx.getAttemptService();
+        TestService testService = ctx.getTestService();
 
         StartAttemptRequestDto startRequest = readJson(request, StartAttemptRequestDto.class);
 
@@ -113,18 +114,20 @@ public class TestAttemptServlet extends BaseServlet {
             Integer attemptId = startTestAttemptUseCase.execute(useCaseRequest);
 
             Optional<TestAttempt> attempt = attemptService.getAttempt(attemptId);
+            Optional<Test> test = testService.getTest(startRequest.testId);
+
             if (attempt.isPresent()) {
                 Map<String, Object> result = new HashMap<>();
                 result.put("attemptId", attemptId);
                 result.put("startTime", attempt.get().getStartTime());
-                result.put("timeLimit", 3600); // This should come from test
+                result.put("timeLimit", test.map(Test::getTimeLimit).orElse(null));
 
                 sendSuccess(response, result);
             } else {
                 sendError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                         "Failed to retrieve attempt");
             }
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             sendError(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
         }
     }
@@ -146,10 +149,10 @@ public class TestAttemptServlet extends BaseServlet {
             return;
         }
 
-//        if (attempt.get().getIsFinished()) {
-//            sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Attempt already finished");
-//            return;
-//        }
+        if (attempt.get().getEndTime() != null) {
+            sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Attempt already finished");
+            return;
+        }
 
         SubmitAnswerRequestDto answerRequest = readJson(request, SubmitAnswerRequestDto.class);
 
@@ -168,7 +171,7 @@ public class TestAttemptServlet extends BaseServlet {
 
             submitAnswerUseCase.execute(useCaseRequest);
             sendSuccess(response, null);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             sendError(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
         }
     }
@@ -179,6 +182,7 @@ public class TestAttemptServlet extends BaseServlet {
         UseCase<FinishTestAttemptRequest, Integer> finishTestAttemptUseCase =
                 ctx.getFinishTestAttemptUseCase();
         TestAttemptService attemptService = ctx.getAttemptService();
+        TestService testService = ctx.getTestService();
 
         Optional<TestAttempt> attempt = attemptService.getAttempt(attemptId);
         if (!attempt.isPresent()) {
@@ -186,25 +190,43 @@ public class TestAttemptServlet extends BaseServlet {
             return;
         }
 
-        if (!attempt.get().getUserId().equals(userId)) {
+        TestAttempt att = attempt.get();
+        if (!att.getUserId().equals(userId)) {
             sendError(response, HttpServletResponse.SC_FORBIDDEN, "Not your attempt");
             return;
         }
 
-//        if (attempt.get().getIsFinished()) {
-//            sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Attempt already finished");
-//            return;
-//        }
+        if (att.getEndTime() != null) {
+            sendError(response, HttpServletResponse.SC_BAD_REQUEST, "Attempt already finished");
+            return;
+        }
 
         try {
             FinishTestAttemptRequest useCaseRequest = new FinishTestAttemptRequest(attemptId);
             Integer score = finishTestAttemptUseCase.execute(useCaseRequest);
 
+            // Calculate max score from test questions
+            Optional<Test> test = testService.getTest(att.getTestId());
+            int maxScore = 0;
+            if (test.isPresent()) {
+                List<Question> questions = testService.getQuestions(test.get().getId());
+                maxScore = questions.stream()
+                        .mapToInt(q -> q.getMaxPoints() != null ? q.getMaxPoints() : 0)
+                        .sum();
+            }
+
+            if (maxScore == 0) {
+                maxScore = 100; // fallback
+            }
+
+            double percentage = maxScore > 0 ? ((double) score / maxScore) * 100 : 0;
+            boolean passed = percentage >= 60; // Configure pass threshold
+
             Map<String, Object> result = new HashMap<>();
             result.put("score", score);
-            result.put("maxScore", 100); // This should come from test
-            result.put("percentage", score);
-            result.put("passed", score >= 60); // Configure pass threshold
+            result.put("maxScore", maxScore);
+            result.put("percentage", percentage);
+            result.put("passed", passed);
 
             sendSuccess(response, result);
         } catch (Exception e) {
@@ -216,6 +238,7 @@ public class TestAttemptServlet extends BaseServlet {
                                           Integer attemptId, Integer userId) throws IOException {
         ApplicationContext ctx = getAppContext();
         TestAttemptService attemptService = ctx.getAttemptService();
+        TestService testService = ctx.getTestService();
 
         Optional<TestAttempt> attempt = attemptService.getAttempt(attemptId);
         if (!attempt.isPresent()) {
@@ -235,6 +258,9 @@ public class TestAttemptServlet extends BaseServlet {
                 .map(UserAnswer::getQuestionId)
                 .collect(Collectors.toSet());
 
+        Optional<Test> test = testService.getTest(att.getTestId());
+        int totalQuestions = test.map(t -> testService.getQuestions(t.getId()).size()).orElse(0);
+
         Map<String, Object> result = new HashMap<>();
         result.put("id", att.getId());
         result.put("userId", att.getUserId());
@@ -242,14 +268,17 @@ public class TestAttemptServlet extends BaseServlet {
         result.put("startTime", att.getStartTime());
         result.put("endTime", att.getEndTime());
         result.put("score", att.getScore());
-//        result.put("isFinished", att.getIsFinished());
+        result.put("isFinished", att.getEndTime() != null);
         result.put("answeredQuestions", answeredQuestions);
-        result.put("totalQuestions", 10); // Should come from test
+        result.put("totalQuestions", totalQuestions);
 
-//        if (!att.getIsFinished() && att.getStartTime() != null) {
-//            long elapsed = Duration.between(att.getStartTime(), ZonedDateTime.now()).getSeconds();
-//            result.put("timeRemaining", Math.max(0, 3600 - elapsed)); // timeLimit from test
-//        }
+        if (att.getEndTime() == null && att.getStartTime() != null && test.isPresent()) {
+            Integer timeLimit = test.get().getTimeLimit();
+            if (timeLimit != null) {
+                long elapsed = Duration.between(att.getStartTime(), ZonedDateTime.now()).getSeconds();
+                result.put("timeRemaining", Math.max(0, (timeLimit * 60L) - elapsed));
+            }
+        }
 
         sendSuccess(response, result);
     }
@@ -258,6 +287,7 @@ public class TestAttemptServlet extends BaseServlet {
                                        Integer requestedUserId) throws IOException {
         ApplicationContext ctx = getAppContext();
         TestAttemptService attemptService = ctx.getAttemptService();
+        TestService testService = ctx.getTestService();
 
         int page = getIntParameter(request, "page", 1);
         int limit = getIntParameter(request, "limit", 20);
@@ -283,7 +313,7 @@ public class TestAttemptServlet extends BaseServlet {
         int end = Math.min(start + limit, total);
 
         List<Map<String, Object>> attempts = allAttempts.subList(start, end).stream()
-                .map(this::convertAttemptToMap)
+                .map(a -> convertAttemptToMap(a, testService))
                 .collect(Collectors.toList());
 
         Map<String, Object> result = new HashMap<>();
@@ -300,6 +330,7 @@ public class TestAttemptServlet extends BaseServlet {
                                          Integer attemptId, Integer userId) throws IOException {
         ApplicationContext ctx = getAppContext();
         TestAttemptService attemptService = ctx.getAttemptService();
+        TestService testService = ctx.getTestService();
 
         Optional<TestAttempt> attempt = attemptService.getAttempt(attemptId);
         if (!attempt.isPresent()) {
@@ -313,44 +344,105 @@ public class TestAttemptServlet extends BaseServlet {
             return;
         }
 
-//        if (!attempt.get().getIsFinished()) {
-//            sendError(response, HttpServletResponse.SC_BAD_REQUEST,
-//                    "Attempt not finished yet");
-//            return;
-//        }
+        if (attempt.get().getEndTime() == null) {
+            sendError(response, HttpServletResponse.SC_BAD_REQUEST,
+                    "Attempt not finished yet");
+            return;
+        }
 
-        List<UserAnswer> answers = attemptService.getAttemptAnswers(attemptId);
+        TestAttempt att = attempt.get();
+        List<UserAnswer> userAnswers = attemptService.getAttemptAnswers(attemptId);
+
+        // Load all questions for the test
+        List<Question> questions = testService.getQuestions(att.getTestId());
+        Map<Integer, Question> questionMap = questions.stream()
+                .collect(Collectors.toMap(Question::getId, q -> q));
+
+        // Load all answer options for each question
+        Map<Integer, List<AnswerOption>> answerOptionsMap = new HashMap<>();
+        for (Question question : questions) {
+            List<AnswerOption> options = testService.getAnswerOptions(question.getId());
+            answerOptionsMap.put(question.getId(), options);
+        }
+
+        // Build detailed answer information
+        List<Map<String, Object>> detailedAnswers = userAnswers.stream()
+                .map(ua -> convertAnswerToDetailedMap(ua, questionMap, answerOptionsMap))
+                .collect(Collectors.toList());
 
         Map<String, Object> result = new HashMap<>();
-        result.put("attempt", convertAttemptToMap(attempt.get()));
-        result.put("answers", answers.stream()
-                .map(this::convertAnswerToMap)
-                .collect(Collectors.toList()));
+        result.put("attempt", convertAttemptToMap(att, testService));
+        result.put("answers", detailedAnswers);
 
         sendSuccess(response, result);
     }
 
-    private Map<String, Object> convertAttemptToMap(TestAttempt attempt) {
+    private Map<String, Object> convertAttemptToMap(TestAttempt attempt, TestService testService) {
         Map<String, Object> map = new HashMap<>();
         map.put("id", attempt.getId());
         map.put("userId", attempt.getUserId());
         map.put("testId", attempt.getTestId());
-        map.put("testTitle", "Test Title");
+
+        Optional<Test> test = testService.getTest(attempt.getTestId());
+        map.put("testTitle", test.map(Test::getTitle).orElse("Unknown Test"));
+
         map.put("startTime", attempt.getStartTime());
         map.put("endTime", attempt.getEndTime());
         map.put("score", attempt.getScore());
+        map.put("isFinished", attempt.getEndTime() != null);
         return map;
     }
 
-    private Map<String, Object> convertAnswerToMap(UserAnswer answer) {
+    private Map<String, Object> convertAnswerToDetailedMap(UserAnswer answer,
+                                                           Map<Integer, Question> questionMap,
+                                                           Map<Integer, List<AnswerOption>> answerOptionsMap) {
         Map<String, Object> map = new HashMap<>();
         map.put("questionId", answer.getQuestionId());
-        map.put("questionText", "Question text"); // Should load from question
-//        map.put("userAnswerId", answer.getSelectedAnswerId());
+
+        // Get question details
+        Question question = questionMap.get(answer.getQuestionId());
+        if (question != null) {
+            map.put("questionText", question.getText());
+            map.put("maxScore", question.getMaxPoints());
+        } else {
+            map.put("questionText", "Unknown Question");
+            map.put("maxScore", 0);
+        }
+
+        // Get user's answer
+        map.put("userAnswerId", answer.getAnswerId());
         map.put("userAnswerText", answer.getAnswerText());
-//        map.put("scoreEarned", answer.getScoreEarned());
-        map.put("maxScore", 10); // Should load from question
-//        map.put("isCorrect", answer.getScoreEarned() != null && answer.getScoreEarned() > 0);
+
+        // Get score earned and correct answer info
+        Integer scoreEarned = 0;
+        String correctAnswerText = null;
+
+        if (answer.getAnswerId() != null) {
+            List<AnswerOption> options = answerOptionsMap.get(answer.getQuestionId());
+            if (options != null) {
+                // Find the selected option
+                Optional<AnswerOption> selectedOption = options.stream()
+                        .filter(opt -> opt.getId().equals(answer.getAnswerId()))
+                        .findFirst();
+
+                if (selectedOption.isPresent()) {
+                    scoreEarned = selectedOption.get().getScore();
+                }
+
+                // Find the correct answer (highest score)
+                Optional<AnswerOption> correctOption = options.stream()
+                        .max(Comparator.comparing(opt -> opt.getScore() != null ? opt.getScore() : 0));
+
+                if (correctOption.isPresent()) {
+                    correctAnswerText = correctOption.get().getOptionText();
+                }
+            }
+        }
+
+        map.put("scoreEarned", scoreEarned);
+        map.put("correctAnswerText", correctAnswerText);
+        map.put("isCorrect", scoreEarned != null && scoreEarned > 0);
+
         return map;
     }
 
